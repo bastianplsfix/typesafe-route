@@ -445,3 +445,152 @@ Deno.test("base: combined with search and hash", () => {
     "https://api.prod.com/api/bookmarks/42?fields=title#details",
   );
 });
+
+// ---------------------------------------------------------------------------
+// Optional params (:param?)
+// ---------------------------------------------------------------------------
+
+Deno.test("optional param: omitted", () => {
+  setup();
+  assertEquals(
+    route("/api/bookmarks/:id?", {}),
+    "http://localhost:3000/api/bookmarks",
+  );
+});
+
+Deno.test("optional param: provided", () => {
+  setup();
+  assertEquals(
+    route("/api/bookmarks/:id?", { id: "42" }),
+    "http://localhost:3000/api/bookmarks/42",
+  );
+});
+
+Deno.test("optional param: no args when all optional", () => {
+  setup();
+  assertEquals(
+    route("/api/bookmarks/:id?"),
+    "http://localhost:3000/api/bookmarks",
+  );
+});
+
+Deno.test("optional param: mixed required and optional", () => {
+  setup();
+  assertEquals(
+    route("/api/:org/bookmarks/:id?", { org: "acme" }),
+    "http://localhost:3000/api/acme/bookmarks",
+  );
+});
+
+Deno.test("optional param: mixed required and optional, both provided", () => {
+  setup();
+  assertEquals(
+    route("/api/:org/bookmarks/:id?", { org: "acme", id: "42" }),
+    "http://localhost:3000/api/acme/bookmarks/42",
+  );
+});
+
+Deno.test("optional param: with search params", () => {
+  setup();
+  assertEquals(
+    route("/api/bookmarks/:id?", {
+      path: { id: "42" },
+      search: { fields: "title" },
+    }),
+    "http://localhost:3000/api/bookmarks/42?fields=title",
+  );
+});
+
+Deno.test("optional param: omitted with search params", () => {
+  setup();
+  assertEquals(
+    route("/api/bookmarks/:id?", {
+      search: { page: "1" },
+    }),
+    "http://localhost:3000/api/bookmarks?page=1",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Wildcard params (:param* and :param+)
+// ---------------------------------------------------------------------------
+
+Deno.test("wildcard *: with value", () => {
+  setup();
+  assertEquals(
+    route("/files/:path*", { path: "docs/readme.md" }),
+    "http://localhost:3000/files/docs/readme.md",
+  );
+});
+
+Deno.test("wildcard *: omitted (zero-or-more)", () => {
+  setup();
+  assertEquals(
+    route("/files/:path*"),
+    "http://localhost:3000/files",
+  );
+});
+
+Deno.test("wildcard *: single segment", () => {
+  setup();
+  assertEquals(
+    route("/files/:path*", { path: "readme.md" }),
+    "http://localhost:3000/files/readme.md",
+  );
+});
+
+Deno.test("wildcard +: with value", () => {
+  setup();
+  assertEquals(
+    route("/files/:path+", { path: "docs/readme.md" }),
+    "http://localhost:3000/files/docs/readme.md",
+  );
+});
+
+Deno.test("wildcard: encodes segments individually", () => {
+  setup();
+  assertEquals(
+    route("/files/:path*", { path: "my docs/hello world.md" }),
+    "http://localhost:3000/files/my%20docs/hello%20world.md",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// matchRoute with optional/wildcard params
+// ---------------------------------------------------------------------------
+
+Deno.test("matchRoute: optional param present", () => {
+  setup();
+  const result = matchRoute(
+    "/api/bookmarks/:id?",
+    "http://localhost:3000/api/bookmarks/42",
+  );
+  assertEquals(result?.path.id, "42");
+});
+
+Deno.test("matchRoute: wildcard param", () => {
+  setup();
+  const result = matchRoute(
+    "/files/:path*",
+    "http://localhost:3000/files/docs/readme.md",
+  );
+  assertEquals(result?.path.path, "docs/readme.md");
+});
+
+// ---------------------------------------------------------------------------
+// Round-trip: optional/wildcard
+// ---------------------------------------------------------------------------
+
+Deno.test("round-trip: optional param provided", () => {
+  setup();
+  const url = route("/api/bookmarks/:id?", { id: "42" });
+  const result = matchRoute("/api/bookmarks/:id?", url);
+  assertEquals(result?.path.id, "42");
+});
+
+Deno.test("round-trip: wildcard param", () => {
+  setup();
+  const url = route("/files/:path*", { path: "docs/readme.md" });
+  const result = matchRoute("/files/:path*", url);
+  assertEquals(result?.path.path, "docs/readme.md");
+});

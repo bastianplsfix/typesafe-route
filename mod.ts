@@ -32,6 +32,7 @@ export {
 
 export type {
   ParamValue,
+  StripModifier,
   ExtractParams,
   RouteExtra,
   RouteOptions,

@@ -29,19 +29,38 @@
 
 export type ParamValue = string | number;
 
+/** Strip modifier suffixes (`?`, `*`, `+`) from a param name. */
+export type StripModifier<T extends string> =
+  T extends `${infer Name}${"?" | "*" | "+"}` ? Name : T;
+
 /**
- * Extract `:param` names from a pattern string literal.
- *
- * @example
- * ExtractParams<"/api/:org/bookmarks/:id"> → "org" | "id"
- * ExtractParams<"/api/bookmarks">           → never
+ * Extract raw `:param` tokens (including modifiers) from a pattern string literal.
+ * @internal
  */
-export type ExtractParams<T extends string> =
+type RawParams<T extends string> =
   T extends `${string}:${infer Param}/${infer Rest}`
-    ? Param | ExtractParams<Rest>
+    ? Param | RawParams<Rest>
     : T extends `${string}:${infer Param}`
       ? Param
       : never;
+
+/**
+ * Extract `:param` names from a pattern string literal, stripping modifiers.
+ *
+ * @example
+ * ExtractParams<"/api/:org/bookmarks/:id"> → "org" | "id"
+ * ExtractParams<"/api/bookmarks/:id?">     → "id"
+ * ExtractParams<"/api/bookmarks">           → never
+ */
+export type ExtractParams<T extends string> = StripModifier<RawParams<T>>;
+
+/** Extract only required param names (no `?` or `*` modifier — these are optional). */
+type RequiredParams<T extends string> =
+  StripModifier<Exclude<RawParams<T>, `${string}?` | `${string}*`>>;
+
+/** Extract only optional param names (with `?` or `*` modifier). */
+type OptionalParams<T extends string> =
+  StripModifier<Extract<RawParams<T>, `${string}?` | `${string}*`>>;
 
 /** Extra options available in the explicit `{ path, ... }` form. */
 export interface RouteExtra {
@@ -57,12 +76,20 @@ export interface RouteExtra {
 /**
  * When the pattern has no params, options are optional (search-only or omitted).
  * When it has params, you must provide them — either as a flat object or via `{ path }`.
+ * Optional-only patterns allow omitting the options argument entirely.
  */
-export type RouteOptions<K extends string = string> =
+export type RouteOptions<K extends string = string, T extends string = string> =
   [K] extends [never]
     ? RouteExtra | undefined
-    : | Record<K, ParamValue>
-      | ({ path: Record<K, ParamValue> } & RouteExtra);
+    : [RequiredParams<T>] extends [never]
+      ? | Partial<Record<K, ParamValue>>
+        | ({ path?: Partial<Record<K, ParamValue>> } & RouteExtra)
+        | undefined
+      : [OptionalParams<T>] extends [never]
+        ? | Record<K, ParamValue>
+          | ({ path: Record<K, ParamValue> } & RouteExtra)
+        : | (Record<RequiredParams<T>, ParamValue> & Partial<Record<OptionalParams<T>, ParamValue>>)
+          | ({ path: Record<RequiredParams<T>, ParamValue> & Partial<Record<OptionalParams<T>, ParamValue>> } & RouteExtra);
 
 export interface MatchResult<K extends string = string> {
   path: Record<K, string>;
@@ -145,21 +172,17 @@ export function route<T extends string>(
   pattern: T,
   ...[options]: [ExtractParams<T>] extends [never]
     ? [options?: RouteExtra]
-    : [options: RouteOptions<ExtractParams<T>>]
+    : [RequiredParams<T>] extends [never]
+      ? [options?: RouteOptions<ExtractParams<T>, T> | RouteExtra]
+      : [options: RouteOptions<ExtractParams<T>, T>]
 ): string {
   const normalized = normalizeOptions(options);
   const base = normalized.base ? strip(normalized.base) : getBase();
 
-  let pathname = pattern as string;
-  for (const [key, value] of Object.entries(normalized.path)) {
-    const encoded = isEncoded(String(value))
-      ? String(value)
-      : encodeURIComponent(String(value));
-    pathname = pathname.replace(`:${key}`, encoded);
-  }
+  let pathname = replaceParams(pattern as string, normalized.path);
 
   // Runtime safety net — catches untyped patterns (e.g. `string` variables)
-  const unreplaced = pathname.match(/:([a-zA-Z_]\w*)/g);
+  const unreplaced = pathname.match(/:([a-zA-Z_]\w*(?![?*+]))/g);
   if (unreplaced) {
     throw new Error(
       `Unreplaced params in "${pattern}": ${unreplaced.join(", ")}`
@@ -331,8 +354,19 @@ const EXTRA_KEYS = new Set(["path", "search", "hash", "relative", "base"]);
 function normalizeOptions(options?: RouteOptions<string> | RouteExtra): NormalizedOptions {
   if (!options) return { path: {}, search: {} };
 
-  // Explicit shape: has any known extra key
-  if (Object.keys(options).some((k) => EXTRA_KEYS.has(k))) {
+  // Explicit shape: has any known extra key where the value is the expected type.
+  // We check `path` specifically because a flat param could also be named "path"
+  // (e.g. wildcard `:path*`). If `path` is present but is a string/number, it's a
+  // flat param, not the explicit `{ path: Record<...> }` form.
+  const hasExplicitKey = Object.keys(options).some((k) => {
+    if (k === "path") {
+      const v = (options as Record<string, unknown>)[k];
+      return typeof v === "object" && v !== null;
+    }
+    return EXTRA_KEYS.has(k);
+  });
+
+  if (hasExplicitKey) {
     const explicit = options as {
       path?: Record<string, ParamValue>;
       search?: Record<string, string | string[]>;
@@ -351,6 +385,64 @@ function normalizeOptions(options?: RouteOptions<string> | RouteExtra): Normaliz
 
   // Flat object → all path params
   return { path: options as Record<string, ParamValue>, search: {} };
+}
+
+/**
+ * Replace `:param`, `:param?`, `:param*`, `:param+` tokens in a pathname.
+ *
+ * - Required params (`:name`) are replaced with the encoded value.
+ * - Optional params (`:name?`) are removed (including surrounding `/`) when missing.
+ * - Wildcard params (`:name*`, `:name+`) insert the value without encoding `/` separators.
+ * - Zero-or-more wildcards (`:name*`) are removed when missing.
+ * - One-or-more wildcards (`:name+`) are treated as required.
+ */
+function replaceParams(
+  pathname: string,
+  params: Record<string, ParamValue>,
+): string {
+  // Handle optional params — remove segment when value is absent
+  pathname = pathname.replace(
+    /\/:([a-zA-Z_]\w*)\?/g,
+    (_, name) => {
+      if (name in params && params[name] !== undefined) {
+        const v = String(params[name]);
+        const encoded = isEncoded(v) ? v : encodeURIComponent(v);
+        return `/${encoded}`;
+      }
+      return "";
+    },
+  );
+
+  // Handle wildcard params (*, +) — don't encode `/` separators
+  pathname = pathname.replace(
+    /:([a-zA-Z_]\w*)([*+])/g,
+    (match, name, modifier) => {
+      if (name in params && params[name] !== undefined) {
+        const v = String(params[name]);
+        // Encode each segment individually, preserving `/`
+        return v
+          .split("/")
+          .map((seg) => (isEncoded(seg) ? seg : encodeURIComponent(seg)))
+          .join("/");
+      }
+      if (modifier === "*") return "";
+      // `+` is required — leave the token for the unreplaced check
+      return match;
+    },
+  );
+
+  // Handle regular required params
+  for (const [key, value] of Object.entries(params)) {
+    const encoded = isEncoded(String(value))
+      ? String(value)
+      : encodeURIComponent(String(value));
+    pathname = pathname.replace(`:${key}`, encoded);
+  }
+
+  // Clean up double slashes left by removed optional segments
+  pathname = pathname.replace(/\/\//g, "/");
+
+  return pathname;
 }
 
 function strip(s: string): string {
