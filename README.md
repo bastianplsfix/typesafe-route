@@ -127,6 +127,26 @@ result?.path.id;  // ✅ typed as string
 result?.path.foo; // ❌ type error
 ```
 
+**Advanced URLPattern syntax:** `matchRoute()` supports the full URLPattern API, including regex constraints and custom patterns:
+
+```ts
+// Regex constraint - only digits
+matchRoute("/api/:id(\\d+)", "http://localhost:3000/api/123");
+// → { path: { id: "123" }, search: {} }
+
+matchRoute("/api/:id(\\d+)", "http://localhost:3000/api/abc");
+// → null (doesn't match)
+
+// Enum pattern
+matchRoute("/blog/:lang(en|no|de)/:slug", url);
+
+// Named groups
+matchRoute("/files/:filename.:ext", "http://localhost:3000/files/doc.pdf");
+// → { path: { filename: "doc", ext: "pdf" }, search: {} }
+```
+
+**Note:** `route()` only supports basic syntax (`:param`, `:param?`, `:param*`, `:param+`) for type inference. For advanced patterns in `route()`, use type assertion: `route("/api/:id(\\d+)" as any, { id: "123" } as any)`
+
 ### `routePattern(pattern)`
 
 Bind a pattern for reuse. Returns a callable with `.pattern` and `.match()`.
