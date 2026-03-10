@@ -213,6 +213,30 @@ Example output (automatically shown in dev):
 [typed-route] /api/posts/:slug → http://localhost:3000/api/posts/hello-world
 ```
 
+### `getBaseURL()`
+
+Get the current base URL being used by the library.
+
+```ts
+const base = getBaseURL();
+console.log("API Base:", base); // "http://localhost:3000"
+
+// Useful for conditional logic
+if (getBaseURL().includes("localhost")) {
+  console.log("Running in dev mode");
+}
+```
+
+### `getConfig()`
+
+Get the current configuration (read-only copy).
+
+```ts
+const config = getConfig();
+console.log("Verbose:", config.verbose);
+console.log("Trailing slash:", config.trailingSlash);
+```
+
 ## Type safety
 
 Param names are extracted from the pattern string literal at compile time:

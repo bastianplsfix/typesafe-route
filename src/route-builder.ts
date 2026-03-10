@@ -167,6 +167,34 @@ export function configureRoute(config: RouteConfig): void {
   _baseLogged = false; // reset logging state
 }
 
+/**
+ * Get the current base URL being used by the library.
+ * Useful for debugging, displaying in UI, or conditional logic.
+ *
+ * @example
+ * ```ts
+ * const base = getBaseURL();
+ * console.log("API Base:", base); // "http://localhost:3000"
+ * ```
+ */
+export function getBaseURL(): string {
+  return getBase();
+}
+
+/**
+ * Get the current configuration (read-only).
+ * Useful for testing, debugging, or introspection.
+ *
+ * @example
+ * ```ts
+ * const config = getConfig();
+ * console.log("Verbose mode:", config.verbose);
+ * ```
+ */
+export function getConfig(): Readonly<RouteConfig> {
+  return { ..._config };
+}
+
 // ---------------------------------------------------------------------------
 // Build
 // ---------------------------------------------------------------------------
@@ -530,13 +558,6 @@ function envLookup(key: string): string | undefined {
     bunEnv(key) ??
     processEnv(key)
   );
-}
-
-function browserOrigin(): string | undefined {
-  if (typeof globalThis.window !== "undefined" && globalThis.window.location?.origin) {
-    return globalThis.window.location.origin;
-  }
-  return undefined;
 }
 
 interface NormalizedOptions {
