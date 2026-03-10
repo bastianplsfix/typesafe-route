@@ -196,7 +196,7 @@ Error: Unreplaced params in "/api/bookmarks/:id": :id. Received: {}
 
 ## Encoding
 
-Path params are automatically encoded via `encodeURIComponent`. Already-encoded values (e.g. `"hello%20world"`) are detected and passed through to avoid double-encoding. Search params are handled by `URLSearchParams` which encodes them natively.
+Path params are always encoded via `encodeURIComponent` — pass raw values, not pre-encoded ones (e.g. `"hello world"` not `"hello%20world"`). `matchRoute` decodes them back, so round-trips are lossless. Search params are handled by `URLSearchParams` which encodes them natively.
 
 ## Trailing slashes
 

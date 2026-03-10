@@ -339,37 +339,47 @@ export function routePattern<T extends string>(pattern: T): BoundRoute<T> {
 // ---------------------------------------------------------------------------
 
 function getBase(): string {
-  if (!_resolvedBase) _resolvedBase = resolveBase(_config);
+  if (_resolvedBase === undefined) _resolvedBase = resolveBase(_config);
   return _resolvedBase;
 }
 
 function resolveBase(config: RouteConfig): string {
-  if (config.base) return strip(config.base);
+  const raw =
+    config.base ||
+    envLookup(config.envKey ?? "API_BASE") ||
+    browserOrigin() ||
+    config.fallback ||
+    "http://localhost:3000";
 
-  const key = config.envKey ?? "API_BASE";
+  const base = strip(raw);
 
-  // Vite / modern bundlers
-  const meta = importMetaEnv(key) ?? importMetaEnv(`VITE_${key}`);
-  if (meta) return strip(meta);
-
-  // Deno
-  const deno = denoEnv(key);
-  if (deno) return strip(deno);
-
-  // Bun
-  const bun = bunEnv(key);
-  if (bun) return strip(bun);
-
-  // Node (also works as fallback for Bun/Deno compat layers)
-  const proc = processEnv(key);
-  if (proc) return strip(proc);
-
-  // Browser
-  if (typeof globalThis.window !== "undefined" && globalThis.window.location?.origin) {
-    return strip(globalThis.window.location.origin);
+  // Validate that the resolved base is a usable URL origin
+  try {
+    new URL("/", base);
+  } catch {
+    throw new Error(
+      `Invalid base URL: "${raw}" (resolved to "${base}"). Provide a full URL like "http://localhost:3000".`
+    );
   }
 
-  return strip(config.fallback ?? "http://localhost:3000");
+  return base;
+}
+
+function envLookup(key: string): string | undefined {
+  return (
+    importMetaEnv(key) ??
+    importMetaEnv(`VITE_${key}`) ??
+    denoEnv(key) ??
+    bunEnv(key) ??
+    processEnv(key)
+  );
+}
+
+function browserOrigin(): string | undefined {
+  if (typeof globalThis.window !== "undefined" && globalThis.window.location?.origin) {
+    return globalThis.window.location.origin;
+  }
+  return undefined;
 }
 
 interface NormalizedOptions {
@@ -551,7 +561,6 @@ function normalizeTrailingSlash(url: string): string {
 
   return normalized + suffix;
 }
-
 
 function importMetaEnv(key: string): string | undefined {
   try {
