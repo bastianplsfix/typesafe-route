@@ -126,6 +126,20 @@ export interface RouteConfig {
    * @default "preserve"
    */
   trailingSlash?: "strip" | "preserve";
+
+  /**
+   * Enable verbose logging for debugging.
+   * - `true`: logs base URL resolution + route building (matchRoute excluded by default)
+   * - `{ base, build, match }`: granular control over what gets logged
+   * @default false
+   */
+  verbose?:
+    | boolean
+    | {
+        base?: boolean;
+        build?: boolean;
+        match?: boolean;
+      };
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +148,7 @@ export interface RouteConfig {
 
 let _config: RouteConfig = {};
 let _resolvedBase: string | undefined;
+let _baseLogged = false;
 
 /**
  * Optionally configure the base URL resolution once at app startup.
@@ -147,6 +162,7 @@ let _resolvedBase: string | undefined;
 export function configureRoute(config: RouteConfig): void {
   _config = config;
   _resolvedBase = undefined; // reset cache
+  _baseLogged = false; // reset logging state
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +281,11 @@ export function route<T extends string>(
 
   const full = normalizeTrailingSlash(url.toString());
 
+  // Verbose logging
+  if (shouldLog("build") && typeof console !== "undefined") {
+    console.log(`[typed-route] ${pattern} → ${full}`);
+  }
+
   if (normalized.relative) {
     const parsed = new URL(full);
     return parsed.pathname + parsed.search + parsed.hash;
@@ -304,7 +325,13 @@ export function matchRoute<T extends string>(
   const urlPattern = new URLPattern({ pathname: pattern, baseURL: base });
   const result = urlPattern.exec(url);
 
-  if (!result) return null;
+  if (!result) {
+    // Verbose logging for failed matches
+    if (shouldLog("match") && typeof console !== "undefined") {
+      console.log(`[typed-route] ✗ ${pattern} did not match ${url}`);
+    }
+    return null;
+  }
 
   // Decode path params for consistency with search params (which URLSearchParams
   // auto-decodes). Without this, a round-trip route()→matchRoute() returns
@@ -328,7 +355,15 @@ export function matchRoute<T extends string>(
     search[key] = values.length === 1 ? values[0] : values;
   }
 
-  return { path, search };
+  const matchResult = { path, search };
+
+  // Verbose logging for successful matches
+  if (shouldLog("match") && typeof console !== "undefined") {
+    console.log(`[typed-route] ✓ ${pattern} matched ${url}`);
+    console.log(`  → ${JSON.stringify(matchResult)}`);
+  }
+
+  return matchResult;
 }
 
 // ---------------------------------------------------------------------------
@@ -400,17 +435,41 @@ export const createRoute = routePattern;
 // Internals
 // ---------------------------------------------------------------------------
 
+/**
+ * Helper to check if verbose logging is enabled for a specific category.
+ * @internal
+ */
+function shouldLog(category: "base" | "build" | "match"): boolean {
+  if (!_config.verbose) return false;
+  if (_config.verbose === true) {
+    // true = log base + build, but not match (too noisy by default)
+    return category === "base" || category === "build";
+  }
+  return _config.verbose[category] ?? false;
+}
+
 function getBase(): string {
   if (_resolvedBase === undefined) _resolvedBase = resolveBase(_config);
   return _resolvedBase;
 }
 
 function resolveBase(config: RouteConfig): string {
-  const raw =
-    config.base ||
-    envLookup(config.envKey ?? "API_BASE") ||
-    config.fallback ||
-    "http://localhost:3000";
+  let source: string;
+  let raw: string;
+
+  if (config.base) {
+    raw = config.base;
+    source = "config.base";
+  } else if (envLookup(config.envKey ?? "API_BASE")) {
+    raw = envLookup(config.envKey ?? "API_BASE")!;
+    source = `env.${config.envKey ?? "API_BASE"}`;
+  } else if (config.fallback) {
+    raw = config.fallback;
+    source = "config.fallback";
+  } else {
+    raw = "http://localhost:3000";
+    source = "fallback";
+  }
 
   const base = strip(raw);
 
@@ -423,8 +482,14 @@ function resolveBase(config: RouteConfig): string {
     );
   }
 
+  // Verbose logging - only log once when base is first resolved
+  if (shouldLog("base") && !_baseLogged && typeof console !== "undefined") {
+    console.log(`[typed-route] Base URL: ${base} (source: ${source})`);
+    _baseLogged = true;
+  }
+
   // Warn in dev if using fallback localhost
-  const isFallback = !config.base && !envLookup(config.envKey ?? "API_BASE") && !config.fallback;
+  const isFallback = source === "fallback";
   if (isFallback && base === "http://localhost:3000" && typeof console !== "undefined") {
     console.warn(
       "[typed-route] No API_BASE configured, using fallback: http://localhost:3000. " +

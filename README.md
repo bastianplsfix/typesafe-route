@@ -176,9 +176,35 @@ Optional one-time setup. Call at app startup.
 configureRoute({
   base: "https://api.example.com",     // explicit base (skips env detection)
   envKey: "BACKEND_URL",               // custom env variable name
-  fallback: "http://localhost:8080",    // dev fallback
-  trailingSlash: "strip",              // "strip" | "add" | "preserve"
+  fallback: "http://localhost:8080",   // dev fallback
+  trailingSlash: "strip",              // "strip" | "preserve"
+  verbose: true,                       // enable debug logging
 });
+```
+
+**Verbose logging:**
+
+Enable verbose mode for debugging:
+
+```ts
+// Simple: log base URL + route building
+configureRoute({ verbose: true });
+
+// Granular control
+configureRoute({
+  verbose: {
+    base: true,   // Log base URL resolution (once)
+    build: true,  // Log each route() call
+    match: false, // Don't log matchRoute() (can be very noisy)
+  }
+});
+```
+
+Example output:
+```
+[typed-route] Base URL: http://localhost:3000 (source: fallback)
+[typed-route] /api/users/:id → http://localhost:3000/api/users/42
+[typed-route] /api/posts/:slug → http://localhost:3000/api/posts/hello-world
 ```
 
 ## Type safety
