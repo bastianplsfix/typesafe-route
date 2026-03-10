@@ -212,6 +212,11 @@ function validatePattern(pattern: string): void {
  * // No params
  * route("/api/bookmarks");
  * ```
+ *
+ * @throws {Error} If pattern doesn't start with "/"
+ * @throws {Error} If pattern has invalid syntax (adjacent params, empty names, etc.)
+ * @throws {Error} If required params are not provided
+ * @throws {Error} If base URL is localhost in production environment
  */
 export function route<T extends string>(
   pattern: T,
@@ -277,6 +282,9 @@ export function route<T extends string>(
  * matchRoute("/api/bookmarks", "http://localhost:3000/api/bookmarks?tag=a&tag=b");
  * // → { path: {}, search: { tag: ["a", "b"] } }
  * ```
+ *
+ * @throws {Error} If pattern doesn't start with "/"
+ * @throws {Error} If pattern has invalid syntax (adjacent params, empty names, etc.)
  */
 export function matchRoute<T extends string>(
   pattern: T,
@@ -352,12 +360,16 @@ export interface BoundRoute<T extends string> {
  * bookmarks.match("http://localhost:3000/api/bookmarks/42");
  * // → { path: { id: "42" }, search: {} }
  * ```
+ *
+ * @throws {Error} If pattern doesn't start with "/"
  */
 export function routePattern<T extends string>(pattern: T): BoundRoute<T> {
   if (pattern && !pattern.startsWith("/")) {
     throw new Error(`Pattern must start with "/": "${pattern}"`);
   }
 
+  // Use `any` internally to delegate type checking to the bound route's call signature.
+  // The returned BoundRoute<T> preserves full type safety for callers.
   // deno-lint-ignore no-explicit-any
   const fn = ((...args: [any?]) => {
     // deno-lint-ignore no-explicit-any
@@ -590,6 +602,9 @@ function strip(s: string): string {
 }
 
 function normalizeTrailingSlash(url: string): string {
+  // Guard against edge cases: empty strings or URLs without slashes
+  if (!url || !url.includes("/")) return url;
+
   const mode = _config.trailingSlash ?? "strip";
   if (mode === "preserve") return url;
 
