@@ -184,6 +184,11 @@ export function route<T extends string>(
     throw new Error(`Pattern must start with "/": "${pattern}"`);
   }
 
+  // Validate pattern syntax - params cannot be adjacent
+  if (/:([a-zA-Z_]\w*)[?*+]?:/.test(pattern)) {
+    throw new Error(`Invalid pattern syntax: "${pattern}". Params cannot be adjacent.`);
+  }
+
   const normalized = normalizeOptions(options, pattern as string);
   const base = normalized.base ? strip(normalized.base) : getBase();
 
@@ -245,6 +250,11 @@ export function matchRoute<T extends string>(
 ): MatchResult<ExtractParams<T>> | null {
   if (pattern && !pattern.startsWith("/")) {
     throw new Error(`Pattern must start with "/": "${pattern}"`);
+  }
+
+  // Validate pattern syntax - params cannot be adjacent
+  if (/:([a-zA-Z_]\w*)[?*+]?:/.test(pattern)) {
+    throw new Error(`Invalid pattern syntax: "${pattern}". Params cannot be adjacent.`);
   }
 
   const base = getBase();
@@ -519,7 +529,8 @@ function replaceParams(
   }
 
   // Clean up double slashes left by removed optional segments
-  pathname = pathname.replace(/\/\//g, "/");
+  // Use negative lookbehind to avoid breaking protocol schemes (e.g., http://)
+  pathname = pathname.replace(/([^:])\/\//g, "$1/");
 
   return pathname;
 }
