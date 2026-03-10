@@ -594,3 +594,72 @@ Deno.test("round-trip: wildcard param", () => {
   const result = matchRoute("/files/:path*", url);
   assertEquals(result?.path.path, "docs/readme.md");
 });
+
+// ---------------------------------------------------------------------------
+// Edge cases: isEncoded safety
+// ---------------------------------------------------------------------------
+
+Deno.test("encoding: handles invalid percent sequences without throwing", () => {
+  setup();
+  // "100%natural" contains an invalid percent sequence — should not throw
+  assertEquals(
+    route("/api/search/:query", { query: "100%natural" }),
+    "http://localhost:3000/api/search/100%25natural",
+  );
+});
+
+Deno.test("encoding: plain string without percent is not treated as encoded", () => {
+  setup();
+  assertEquals(
+    route("/api/search/:query", { query: "hello world" }),
+    "http://localhost:3000/api/search/hello%20world",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: trailing slash with hash (no query)
+// ---------------------------------------------------------------------------
+
+Deno.test("trailing slash: strip mode with hash and no query", () => {
+  setup();
+  assertEquals(
+    route("/docs/", { hash: "section" }),
+    "http://localhost:3000/docs#section",
+  );
+});
+
+Deno.test("trailing slash: add mode with hash and no query", () => {
+  configureRoute({ base: "http://localhost:3000", trailingSlash: "add" });
+  assertEquals(
+    route("/docs", { hash: "section" }),
+    "http://localhost:3000/docs/#section",
+  );
+});
+
+Deno.test("trailing slash: strip mode with hash and query", () => {
+  setup();
+  assertEquals(
+    route("/docs/", { search: { v: "2" }, hash: "section" }),
+    "http://localhost:3000/docs?v=2#section",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: flat params named like extra keys
+// ---------------------------------------------------------------------------
+
+Deno.test("flat params: param named 'search' treated as flat path param", () => {
+  setup();
+  assertEquals(
+    route("/api/:search/:id", { search: "users", id: "42" } as any),
+    "http://localhost:3000/api/users/42",
+  );
+});
+
+Deno.test("flat params: param named 'relative' treated as flat path param", () => {
+  setup();
+  assertEquals(
+    route("/api/:relative/:id", { relative: "yes", id: "42" } as any),
+    "http://localhost:3000/api/yes/42",
+  );
+});

@@ -358,16 +358,37 @@ const EXTRA_KEYS = new Set(["path", "search", "hash", "relative", "base"]);
 function normalizeOptions(options?: RouteOptions<string> | RouteExtra): NormalizedOptions {
   if (!options) return { path: {}, search: {} };
 
-  // Explicit shape: has any known extra key where the value is the expected type.
-  // We check `path` specifically because a flat param could also be named "path"
-  // (e.g. wildcard `:path*`). If `path` is present but is a string/number, it's a
-  // flat param, not the explicit `{ path: Record<...> }` form.
-  const hasExplicitKey = Object.keys(options).some((k) => {
-    if (k === "path") {
-      const v = (options as Record<string, unknown>)[k];
-      return typeof v === "object" && v !== null;
+  const obj = options as Record<string, unknown>;
+  const keys = Object.keys(obj);
+
+  // If any key is NOT an extra key, this must be the flat form — all values are path params.
+  // In explicit form, non-path params go inside `path: { ... }`, so there would be
+  // no unknown top-level keys.
+  const hasNonExtraKey = keys.some((k) => !EXTRA_KEYS.has(k));
+
+  if (hasNonExtraKey) {
+    return { path: obj as Record<string, ParamValue>, search: {} };
+  }
+
+  // All keys are extra keys. Now check if they match the expected explicit-form types.
+  // This handles edge cases like `:path*` where `path` could be a flat string param.
+  const hasExplicitKey = keys.some((k) => {
+    const v = obj[k];
+    switch (k) {
+      case "path":
+        return typeof v === "object" && v !== null;
+      case "search":
+        return typeof v === "object" && v !== null;
+      case "relative":
+        return typeof v === "boolean";
+      // `hash` (string) and `base` (string) are ambiguous with flat string params,
+      // but when ALL keys are extra keys, explicit form is the intended interpretation.
+      case "hash":
+      case "base":
+        return typeof v === "string";
+      default:
+        return false;
     }
-    return EXTRA_KEYS.has(k);
   });
 
   if (hasExplicitKey) {
@@ -388,7 +409,7 @@ function normalizeOptions(options?: RouteOptions<string> | RouteExtra): Normaliz
   }
 
   // Flat object → all path params
-  return { path: options as Record<string, ParamValue>, search: {} };
+  return { path: obj as Record<string, ParamValue>, search: {} };
 }
 
 /**
@@ -435,12 +456,16 @@ function replaceParams(
     },
   );
 
-  // Handle regular required params
+  // Handle regular required params — use a regex with word boundary to avoid
+  // replacing inside already-substituted values or partial matches.
   for (const [key, value] of Object.entries(params)) {
     const encoded = isEncoded(String(value))
       ? String(value)
       : encodeURIComponent(String(value));
-    pathname = pathname.replace(`:${key}`, encoded);
+    pathname = pathname.replace(
+      new RegExp(`:${key}(?=[\\/?#]|$)(?![?*+])`),
+      encoded,
+    );
   }
 
   // Clean up double slashes left by removed optional segments
@@ -457,23 +482,54 @@ function normalizeTrailingSlash(url: string): string {
   const mode = _config.trailingSlash ?? "strip";
   if (mode === "preserve") return url;
 
-  const [base, query] = url.split("?");
+  // Split into pathname vs. the rest (query + hash), preserving both.
+  // We need to handle: path, path?query, path#hash, path?query#hash
+  const qIdx = url.indexOf("?");
+  const hIdx = url.indexOf("#");
+
+  // Find where the pathname ends (first of `?` or `#`, whichever comes first)
+  let splitIdx: number;
+  if (qIdx === -1 && hIdx === -1) {
+    splitIdx = url.length;
+  } else if (qIdx === -1) {
+    splitIdx = hIdx;
+  } else if (hIdx === -1) {
+    splitIdx = qIdx;
+  } else {
+    splitIdx = Math.min(qIdx, hIdx);
+  }
+
+  const pathname = url.slice(0, splitIdx);
+  const suffix = url.slice(splitIdx); // includes `?query#hash` or `#hash` etc.
+
   const normalized =
     mode === "strip"
-      ? base.replace(/\/+$/, "")
-      : base.endsWith("/")
-        ? base
-        : base + "/";
+      ? pathname.replace(/\/+$/, "")
+      : pathname.endsWith("/")
+        ? pathname
+        : pathname + "/";
 
-  return query ? `${normalized}?${query}` : normalized;
+  return normalized + suffix;
 }
 
 /**
  * Check if a value is already percent-encoded to avoid double-encoding.
  * e.g. "hello%20world" → true, "hello world" → false
+ *
+ * Only returns true when the value contains valid percent-encoded sequences
+ * (e.g. `%20`, `%2F`). Values with invalid sequences like `"100%natural"`
+ * are treated as unencoded to avoid decoding errors.
  */
 function isEncoded(value: string): boolean {
-  return value !== decodeURIComponent(value);
+  // Fast path: no percent sign means it can't be encoded
+  if (!value.includes("%")) return false;
+
+  try {
+    return value !== decodeURIComponent(value);
+  } catch {
+    // Invalid percent sequence (e.g. "%natural") — treat as not encoded
+    return false;
+  }
 }
 
 function importMetaEnv(key: string): string | undefined {
