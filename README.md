@@ -41,6 +41,134 @@ The base URL is resolved automatically:
 4. `process.env.API_BASE`
 5. `http://localhost:3000` (fallback)
 
+## Use Cases
+
+### Client-side: Building API URLs
+
+**Perfect for:** React, Vue, Svelte apps making fetch calls
+
+```ts
+import { route, createRoute } from "@bastianplsfix/typed-route";
+
+// TanStack Query
+const userRoute = createRoute("/api/users/:id");
+
+function useUser(id: string) {
+  return useSuspenseQuery({
+    queryKey: [userRoute.pattern, id],
+    queryFn: () => fetch(userRoute({ id })).then(r => r.json())
+  });
+}
+
+// Form submissions
+async function updateUser(id: string, data: UserData) {
+  await fetch(route("/api/users/:id", { id }), {
+    method: "PUT",
+    body: JSON.stringify(data)
+  });
+}
+
+// Search/filtering with query params
+const products = await fetch(
+  route("/api/products", {
+    search: { category: "shoes", size: ["9", "10"], sort: "price" }
+  })
+).then(r => r.json());
+// → /api/products?category=shoes&size=9&size=10&sort=price
+```
+
+### Server-side: Routing & URL Parsing
+
+**Perfect for:** Deno/Bun HTTP servers, middleware, webhooks
+
+```ts
+import { matchRoute, createRoute } from "@bastianplsfix/typed-route";
+
+// Define routes once
+const userRoute = createRoute("/api/users/:id");
+const productRoute = createRoute("/api/products/:id?");
+
+// Server handler
+Deno.serve((req) => {
+  const url = req.url;
+
+  // Match and extract params
+  const userMatch = userRoute.match(url);
+  if (userMatch) {
+    return getUserById(userMatch.path.id);
+  }
+
+  const productMatch = productRoute.match(url);
+  if (productMatch) {
+    // Access query params too
+    const { category, sort } = productMatch.search;
+    return getProducts({
+      id: productMatch.path.id,
+      category,
+      sort
+    });
+  }
+
+  return new Response("Not found", { status: 404 });
+});
+```
+
+### Advanced: Regex Patterns & Validation
+
+**Perfect for:** Strict routing rules, API versioning, locale handling
+
+```ts
+import { matchRoute } from "@bastianplsfix/typed-route";
+
+// Only match numeric IDs
+const userMatch = matchRoute("/api/users/:id(\\d+)", req.url);
+if (!userMatch) {
+  return new Response("Invalid user ID", { status: 400 });
+}
+
+// Locale routing
+const blogMatch = matchRoute("/blog/:lang(en|no|de)/:slug", req.url);
+if (blogMatch) {
+  return renderBlogPost(blogMatch.path.lang, blogMatch.path.slug);
+}
+
+// File type validation
+const fileMatch = matchRoute("/files/:filename.:ext(pdf|doc|txt)", req.url);
+```
+
+### Testing & Debugging
+
+**Perfect for:** Test assertions, debugging, admin panels
+
+```ts
+import { getBaseURL, getConfig } from "@bastianplsfix/typed-route";
+
+// Test setup
+beforeEach(() => {
+  configureRoute({ base: "http://test-api.local" });
+  expect(getBaseURL()).toBe("http://test-api.local");
+});
+
+// Conditional debugging
+if (getBaseURL().includes("localhost")) {
+  console.log("Dev mode - enabling mock data");
+  enableMockMode();
+}
+
+// Admin panel
+function ApiStatus() {
+  const base = getBaseURL();
+  const config = getConfig();
+
+  return (
+    <div>
+      <p>API Endpoint: {base}</p>
+      <p>Verbose: {config.verbose ? "ON" : "OFF"}</p>
+    </div>
+  );
+}
+```
+
 ## API
 
 ### `route(pattern, options?)`
