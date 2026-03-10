@@ -287,7 +287,7 @@ Deno.test("round-trip: encoded path params round-trip correctly", () => {
   setup();
   const url = route("/api/search/:query", { query: "hello world" });
   const result = matchRoute("/api/search/:query", url);
-  assertEquals(result?.path, { query: "hello%20world" });
+  assertEquals(result?.path, { query: "hello world" });
 });
 
 // ---------------------------------------------------------------------------
@@ -662,4 +662,57 @@ Deno.test("flat params: param named 'relative' treated as flat path param", () =
     route("/api/:relative/:id", { relative: "yes", id: "42" } as any),
     "http://localhost:3000/api/yes/42",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: pattern validation
+// ---------------------------------------------------------------------------
+
+Deno.test("route: throws on pattern without leading slash", () => {
+  setup();
+  assertThrows(
+    () => route("api/bookmarks" as any),
+    Error,
+    'Pattern must start with "/"',
+  );
+});
+
+Deno.test("matchRoute: throws on pattern without leading slash", () => {
+  setup();
+  assertThrows(
+    () => matchRoute("api/bookmarks" as any, "http://localhost:3000/api/bookmarks"),
+    Error,
+    'Pattern must start with "/"',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: strip() with multiple trailing slashes
+// ---------------------------------------------------------------------------
+
+Deno.test("configureRoute: strips multiple trailing slashes from base", () => {
+  configureRoute({ base: "https://api.example.com///" });
+  assertEquals(route("/bookmarks"), "https://api.example.com/bookmarks");
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: matchRoute decodes path params
+// ---------------------------------------------------------------------------
+
+Deno.test("matchRoute: decodes percent-encoded path params", () => {
+  setup();
+  const result = matchRoute(
+    "/api/search/:query",
+    "http://localhost:3000/api/search/hello%20world",
+  );
+  assertEquals(result?.path, { query: "hello world" });
+});
+
+Deno.test("matchRoute: decodes special characters in path params", () => {
+  setup();
+  const result = matchRoute(
+    "/api/files/:name",
+    "http://localhost:3000/api/files/my%20file%26data.txt",
+  );
+  assertEquals(result?.path, { name: "my file&data.txt" });
 });

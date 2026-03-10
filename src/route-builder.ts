@@ -180,6 +180,10 @@ export function route<T extends string>(
       ? [options?: RouteOptions<ExtractParams<T>, T> | RouteExtra]
       : [options: RouteOptions<ExtractParams<T>, T>]
 ): string {
+  if (pattern && !pattern.startsWith("/")) {
+    throw new Error(`Pattern must start with "/": "${pattern}"`);
+  }
+
   const normalized = normalizeOptions(options);
   const base = normalized.base ? strip(normalized.base) : getBase();
 
@@ -189,7 +193,7 @@ export function route<T extends string>(
   const unreplaced = pathname.match(/:([a-zA-Z_]\w*(?![?*+]))/g);
   if (unreplaced) {
     throw new Error(
-      `Unreplaced params in "${pattern}": ${unreplaced.join(", ")}`
+      `Unreplaced params in "${pattern}": ${unreplaced.join(", ")}. Received: ${JSON.stringify(normalized.path)}`
     );
   }
 
@@ -239,13 +243,25 @@ export function matchRoute<T extends string>(
   pattern: T,
   url: string,
 ): MatchResult<ExtractParams<T>> | null {
+  if (pattern && !pattern.startsWith("/")) {
+    throw new Error(`Pattern must start with "/": "${pattern}"`);
+  }
+
   const base = getBase();
   const urlPattern = new URLPattern({ pathname: pattern, baseURL: base });
   const result = urlPattern.exec(url);
 
   if (!result) return null;
 
-  const path = { ...result.pathname.groups } as Record<ExtractParams<T>, string>;
+  // Decode path params for consistency with search params (which URLSearchParams
+  // auto-decodes). Without this, a round-trip route()→matchRoute() returns
+  // "%20" instead of " ".
+  const path = Object.fromEntries(
+    Object.entries(result.pathname.groups ?? {}).map(([k, v]) => [
+      k,
+      v ? decodeURIComponent(v) : v,
+    ]),
+  ) as Record<ExtractParams<T>, string>;
 
   const search: Record<string, string | string[]> = {};
   const parsed = new URL(url);
@@ -475,7 +491,7 @@ function replaceParams(
 }
 
 function strip(s: string): string {
-  return s.endsWith("/") ? s.slice(0, -1) : s;
+  return s.replace(/\/+$/, "");
 }
 
 function normalizeTrailingSlash(url: string): string {
