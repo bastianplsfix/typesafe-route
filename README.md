@@ -39,8 +39,7 @@ The base URL is resolved automatically:
 2. `Deno.env.get("API_BASE")`
 3. `Bun.env.API_BASE`
 4. `process.env.API_BASE`
-5. `window.location.origin`
-6. `http://localhost:3000` (fallback)
+5. `http://localhost:3000` (fallback)
 
 ## API
 

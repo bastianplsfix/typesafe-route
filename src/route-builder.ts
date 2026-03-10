@@ -403,7 +403,6 @@ function resolveBase(config: RouteConfig): string {
   const raw =
     config.base ||
     envLookup(config.envKey ?? "API_BASE") ||
-    browserOrigin() ||
     config.fallback ||
     "http://localhost:3000";
 
@@ -419,8 +418,7 @@ function resolveBase(config: RouteConfig): string {
   }
 
   // Warn in dev if using fallback localhost
-  const isFallback = !config.base && !envLookup(config.envKey ?? "API_BASE") &&
-                     !browserOrigin() && !config.fallback;
+  const isFallback = !config.base && !envLookup(config.envKey ?? "API_BASE") && !config.fallback;
   if (isFallback && base === "http://localhost:3000" && typeof console !== "undefined") {
     console.warn(
       "[typed-route] No API_BASE configured, using fallback: http://localhost:3000. " +
