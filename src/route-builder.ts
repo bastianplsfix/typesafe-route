@@ -155,6 +155,47 @@ export function configureRoute(config: RouteConfig): void {
 // ---------------------------------------------------------------------------
 
 /**
+ * Validate pattern syntax and throw if invalid.
+ * @internal
+ */
+function validatePattern(pattern: string): void {
+  // Must start with "/"
+  if (!pattern || !pattern.startsWith("/")) {
+    throw new Error(`Pattern must start with "/": "${pattern}"`);
+  }
+
+  // Adjacent params - params cannot be next to each other without separator
+  if (/:([a-zA-Z_]\w*)[?*+]?:/.test(pattern)) {
+    throw new Error(
+      `Invalid pattern syntax: "${pattern}". Params cannot be adjacent (e.g., ":id:name"). ` +
+      `Use a separator like "/:id/:name".`
+    );
+  }
+
+  // Empty or invalid param names - must start with letter or underscore
+  if (/:[^a-zA-Z_]/.test(pattern)) {
+    throw new Error(
+      `Invalid pattern: "${pattern}". Param names must start with a letter or underscore.`
+    );
+  }
+
+  // Multiple modifiers on same param
+  if (/:([a-zA-Z_]\w*)[?*+]{2,}/.test(pattern)) {
+    throw new Error(
+      `Invalid pattern: "${pattern}". Params can only have one modifier (?, *, or +).`
+    );
+  }
+
+  // Space after colon (common typo)
+  if (/:\s/.test(pattern)) {
+    throw new Error(
+      `Invalid pattern: "${pattern}". Space after ":" is not allowed. ` +
+      `Did you mean "/:param" instead of ": param"?`
+    );
+  }
+}
+
+/**
  * Build a full URL from a path pattern and params.
  *
  * @example
@@ -180,14 +221,7 @@ export function route<T extends string>(
       ? [options?: RouteOptions<ExtractParams<T>, T> | RouteExtra]
       : [options: RouteOptions<ExtractParams<T>, T>]
 ): string {
-  if (pattern && !pattern.startsWith("/")) {
-    throw new Error(`Pattern must start with "/": "${pattern}"`);
-  }
-
-  // Validate pattern syntax - params cannot be adjacent
-  if (/:([a-zA-Z_]\w*)[?*+]?:/.test(pattern)) {
-    throw new Error(`Invalid pattern syntax: "${pattern}". Params cannot be adjacent.`);
-  }
+  validatePattern(pattern as string);
 
   const normalized = normalizeOptions(options, pattern as string);
   const base = normalized.base ? strip(normalized.base) : getBase();
@@ -248,14 +282,7 @@ export function matchRoute<T extends string>(
   pattern: T,
   url: string,
 ): MatchResult<ExtractParams<T>> | null {
-  if (pattern && !pattern.startsWith("/")) {
-    throw new Error(`Pattern must start with "/": "${pattern}"`);
-  }
-
-  // Validate pattern syntax - params cannot be adjacent
-  if (/:([a-zA-Z_]\w*)[?*+]?:/.test(pattern)) {
-    throw new Error(`Invalid pattern syntax: "${pattern}". Params cannot be adjacent.`);
-  }
+  validatePattern(pattern as string);
 
   const base = getBase();
   const urlPattern = new URLPattern({ pathname: pattern, baseURL: base });
