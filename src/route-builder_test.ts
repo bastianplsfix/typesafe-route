@@ -671,7 +671,7 @@ Deno.test("flat params: param named 'relative' treated as flat path param", () =
 Deno.test("route: throws on pattern without leading slash", () => {
   setup();
   assertThrows(
-    () => route("api/bookmarks" as any),
+    () => (route as any)("api/bookmarks"),
     Error,
     'Pattern must start with "/"',
   );
@@ -761,5 +761,45 @@ Deno.test("routePattern: throws eagerly on pattern without leading slash", () =>
     () => routePattern("api/bookmarks" as any),
     Error,
     'Pattern must start with "/"',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Bug fix: flat params named "hash" or "base" treated as path params
+// ---------------------------------------------------------------------------
+
+Deno.test("flat params: param named 'hash' treated as flat path param", () => {
+  setup();
+  assertEquals(
+    route("/api/:hash/:id", { hash: "abc", id: "42" } as any),
+    "http://localhost:3000/api/abc/42",
+  );
+});
+
+Deno.test("flat params: param named 'base' treated as flat path param", () => {
+  setup();
+  assertEquals(
+    route("/api/:base/:id", { base: "main", id: "42" } as any),
+    "http://localhost:3000/api/main/42",
+  );
+});
+
+Deno.test("flat params: hash+base only keys still works as explicit when no pattern params match", () => {
+  setup();
+  assertEquals(
+    route("/api/bookmarks", { hash: "section", base: "http://other.com" }),
+    "http://other.com/api/bookmarks#section",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Bug fix: duplicate required param replaced globally
+// ---------------------------------------------------------------------------
+
+Deno.test("replaceParams: duplicate param name replaced in all positions", () => {
+  setup();
+  assertEquals(
+    (route as any)("/api/:id/copy/:id", { id: "42" }),
+    "http://localhost:3000/api/42/copy/42",
   );
 });

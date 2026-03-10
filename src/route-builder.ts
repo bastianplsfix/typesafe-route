@@ -184,13 +184,13 @@ export function route<T extends string>(
     throw new Error(`Pattern must start with "/": "${pattern}"`);
   }
 
-  const normalized = normalizeOptions(options);
+  const normalized = normalizeOptions(options, pattern as string);
   const base = normalized.base ? strip(normalized.base) : getBase();
 
   let pathname = replaceParams(pattern as string, normalized.path);
 
   // Runtime safety net — catches untyped patterns (e.g. `string` variables)
-  const unreplaced = pathname.match(/:([a-zA-Z_]\w*)\+?/g);
+  const unreplaced = pathname.match(/:([a-zA-Z_]\w*)[?*+]?/g);
   if (unreplaced) {
     throw new Error(
       `Unreplaced params in "${pattern}": ${unreplaced.join(", ")}. Received: ${JSON.stringify(normalized.path)}`
@@ -377,7 +377,10 @@ interface NormalizedOptions {
 
 const EXTRA_KEYS = new Set(["path", "search", "hash", "relative", "base"]);
 
-function normalizeOptions(options?: RouteOptions<string> | RouteExtra): NormalizedOptions {
+function normalizeOptions(
+  options?: RouteOptions<string> | RouteExtra,
+  pattern?: string,
+): NormalizedOptions {
   if (!options) return { path: {}, search: {} };
 
   const obj = options as Record<string, unknown>;
@@ -392,28 +395,17 @@ function normalizeOptions(options?: RouteOptions<string> | RouteExtra): Normaliz
     return { path: obj as Record<string, ParamValue>, search: {} };
   }
 
-  // All keys are extra keys. Now check if they match the expected explicit-form types.
-  // This handles edge cases like `:path*` where `path` could be a flat string param.
-  const hasExplicitKey = keys.some((k) => {
+  // All keys are extra keys. Use unambiguous type signals first: `path` as object,
+  // `search` as object, or `relative` as boolean are strong indicators of explicit form.
+  const hasStrongExplicitKey = keys.some((k) => {
     const v = obj[k];
-    switch (k) {
-      case "path":
-        return typeof v === "object" && v !== null;
-      case "search":
-        return typeof v === "object" && v !== null;
-      case "relative":
-        return typeof v === "boolean";
-      // `hash` (string) and `base` (string) are ambiguous with flat string params,
-      // but when ALL keys are extra keys, explicit form is the intended interpretation.
-      case "hash":
-      case "base":
-        return typeof v === "string";
-      default:
-        return false;
-    }
+    if (k === "path") return typeof v === "object" && v !== null;
+    if (k === "search") return typeof v === "object" && v !== null;
+    if (k === "relative") return typeof v === "boolean";
+    return false;
   });
 
-  if (hasExplicitKey) {
+  if (hasStrongExplicitKey) {
     const explicit = options as {
       path?: Record<string, ParamValue>;
       search?: Record<string, string | string[]>;
@@ -426,6 +418,31 @@ function normalizeOptions(options?: RouteOptions<string> | RouteExtra): Normaliz
       search: explicit.search ?? {},
       hash: explicit.hash,
       relative: explicit.relative,
+      base: explicit.base,
+    };
+  }
+
+  // Remaining keys are only the ambiguous string-typed extras: `hash`, `base`.
+  // Use the pattern to disambiguate: if any key matches a param name, treat as flat.
+  if (pattern) {
+    const paramNames = new Set(
+      (pattern.match(/:([a-zA-Z_]\w*)/g) ?? []).map((m) => m.slice(1)),
+    );
+    if (keys.some((k) => paramNames.has(k))) {
+      return { path: obj as Record<string, ParamValue>, search: {} };
+    }
+  }
+
+  // No param-name overlap — treat `hash`/`base` strings as explicit-form extras.
+  if (keys.some((k) => (k === "hash" || k === "base") && typeof obj[k] === "string")) {
+    const explicit = options as {
+      hash?: string;
+      base?: string;
+    };
+    return {
+      path: {},
+      search: {},
+      hash: explicit.hash,
       base: explicit.base,
     };
   }
@@ -484,8 +501,9 @@ function replaceParams(
     const encoded = isEncoded(String(value))
       ? String(value)
       : encodeURIComponent(String(value));
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     pathname = pathname.replace(
-      new RegExp(`:${key}(?=[\\/?#]|$)(?![?*+])`),
+      new RegExp(`:${escapedKey}(?=[\\/?#]|$)(?![?*+])`, "g"),
       encoded,
     );
   }
