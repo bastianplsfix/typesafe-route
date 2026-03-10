@@ -191,7 +191,7 @@ When all params are optional (`?` or `*`), the options argument can be omitted e
 At runtime, if a `:param` survives replacement (e.g. the pattern was typed as `string`), `route()` throws:
 
 ```
-Error: Unreplaced params in "/api/bookmarks/:id": :id
+Error: Unreplaced params in "/api/bookmarks/:id": :id. Received: {}
 ```
 
 ## Encoding

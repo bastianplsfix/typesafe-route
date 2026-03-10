@@ -287,7 +287,7 @@ Deno.test("round-trip: encoded path params round-trip correctly", () => {
   setup();
   const url = route("/api/search/:query", { query: "hello world" });
   const result = matchRoute("/api/search/:query", url);
-  assertEquals(result?.path, { query: "hello%20world" });
+  assertEquals(result?.path, { query: "hello world" });
 });
 
 // ---------------------------------------------------------------------------
@@ -593,4 +593,173 @@ Deno.test("round-trip: wildcard param", () => {
   const url = route("/files/:path*", { path: "docs/readme.md" });
   const result = matchRoute("/files/:path*", url);
   assertEquals(result?.path.path, "docs/readme.md");
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: isEncoded safety
+// ---------------------------------------------------------------------------
+
+Deno.test("encoding: handles invalid percent sequences without throwing", () => {
+  setup();
+  // "100%natural" contains an invalid percent sequence — should not throw
+  assertEquals(
+    route("/api/search/:query", { query: "100%natural" }),
+    "http://localhost:3000/api/search/100%25natural",
+  );
+});
+
+Deno.test("encoding: plain string without percent is not treated as encoded", () => {
+  setup();
+  assertEquals(
+    route("/api/search/:query", { query: "hello world" }),
+    "http://localhost:3000/api/search/hello%20world",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: trailing slash with hash (no query)
+// ---------------------------------------------------------------------------
+
+Deno.test("trailing slash: strip mode with hash and no query", () => {
+  setup();
+  assertEquals(
+    route("/docs/", { hash: "section" }),
+    "http://localhost:3000/docs#section",
+  );
+});
+
+Deno.test("trailing slash: add mode with hash and no query", () => {
+  configureRoute({ base: "http://localhost:3000", trailingSlash: "add" });
+  assertEquals(
+    route("/docs", { hash: "section" }),
+    "http://localhost:3000/docs/#section",
+  );
+});
+
+Deno.test("trailing slash: strip mode with hash and query", () => {
+  setup();
+  assertEquals(
+    route("/docs/", { search: { v: "2" }, hash: "section" }),
+    "http://localhost:3000/docs?v=2#section",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: flat params named like extra keys
+// ---------------------------------------------------------------------------
+
+Deno.test("flat params: param named 'search' treated as flat path param", () => {
+  setup();
+  assertEquals(
+    route("/api/:search/:id", { search: "users", id: "42" } as any),
+    "http://localhost:3000/api/users/42",
+  );
+});
+
+Deno.test("flat params: param named 'relative' treated as flat path param", () => {
+  setup();
+  assertEquals(
+    route("/api/:relative/:id", { relative: "yes", id: "42" } as any),
+    "http://localhost:3000/api/yes/42",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: pattern validation
+// ---------------------------------------------------------------------------
+
+Deno.test("route: throws on pattern without leading slash", () => {
+  setup();
+  assertThrows(
+    () => route("api/bookmarks" as any),
+    Error,
+    'Pattern must start with "/"',
+  );
+});
+
+Deno.test("matchRoute: throws on pattern without leading slash", () => {
+  setup();
+  assertThrows(
+    () => matchRoute("api/bookmarks" as any, "http://localhost:3000/api/bookmarks"),
+    Error,
+    'Pattern must start with "/"',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: strip() with multiple trailing slashes
+// ---------------------------------------------------------------------------
+
+Deno.test("configureRoute: strips multiple trailing slashes from base", () => {
+  configureRoute({ base: "https://api.example.com///" });
+  assertEquals(route("/bookmarks"), "https://api.example.com/bookmarks");
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: matchRoute decodes path params
+// ---------------------------------------------------------------------------
+
+Deno.test("matchRoute: decodes percent-encoded path params", () => {
+  setup();
+  const result = matchRoute(
+    "/api/search/:query",
+    "http://localhost:3000/api/search/hello%20world",
+  );
+  assertEquals(result?.path, { query: "hello world" });
+});
+
+Deno.test("matchRoute: decodes special characters in path params", () => {
+  setup();
+  const result = matchRoute(
+    "/api/files/:name",
+    "http://localhost:3000/api/files/my%20file%26data.txt",
+  );
+  assertEquals(result?.path, { name: "my file&data.txt" });
+});
+
+// ---------------------------------------------------------------------------
+// routePattern: optional params and eager validation
+// ---------------------------------------------------------------------------
+
+Deno.test("routePattern: optional-only pattern callable without args", () => {
+  setup();
+  const optRoute = routePattern("/api/bookmarks/:id?");
+  assertEquals(optRoute(), "http://localhost:3000/api/bookmarks");
+});
+
+Deno.test("routePattern: optional-only pattern callable with args", () => {
+  setup();
+  const optRoute = routePattern("/api/bookmarks/:id?");
+  assertEquals(
+    optRoute({ id: "42" }),
+    "http://localhost:3000/api/bookmarks/42",
+  );
+});
+
+Deno.test("routePattern: wildcard+ pattern callable with args", () => {
+  setup();
+  const files = routePattern("/files/:p+");
+  assertEquals(
+    files({ p: "docs/readme.md" }),
+    "http://localhost:3000/files/docs/readme.md",
+  );
+});
+
+Deno.test("unreplaced check: catches single-char wildcard+ param", () => {
+  setup();
+  const pattern = "/files/:a+" as string;
+  assertThrows(
+    () => (route as any)(pattern, {}),
+    Error,
+    ":a+",
+  );
+});
+
+Deno.test("routePattern: throws eagerly on pattern without leading slash", () => {
+  setup();
+  assertThrows(
+    () => routePattern("api/bookmarks" as any),
+    Error,
+    'Pattern must start with "/"',
+  );
 });
