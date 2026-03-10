@@ -434,9 +434,9 @@ function resolveBase(config: RouteConfig): string {
     importMetaEnv("PROD") === true ||
     importMetaEnv("MODE") === "production";
 
-  if (isProduction && base.includes("localhost")) {
+  if (isProduction && (base.includes("localhost") || base.includes("127.0.0.1"))) {
     throw new Error(
-      "[typed-route] Refusing to use localhost in production. " +
+      "[typed-route] Refusing to use localhost/127.0.0.1 in production. " +
       "Set API_BASE environment variable or call configureRoute({ base: '...' })"
     );
   }
