@@ -276,7 +276,6 @@ function rejectRegexPattern(pattern: string): void {
  * @throws {Error} If pattern doesn't start with "/"
  * @throws {Error} If pattern has invalid syntax (adjacent params, empty names, etc.)
  * @throws {Error} If required params are not provided
- * @throws {Error} If base URL is localhost in production environment
  */
 export function route<T extends string>(
   pattern: T,
@@ -543,7 +542,7 @@ function resolveBase(config: RouteConfig): string {
     );
   }
 
-  // In production, localhost is likely wrong — throw to prevent silent bugs
+  // In production, localhost is likely wrong — warn to prevent silent bugs
   const isProduction =
     processEnv("NODE_ENV") === "production" ||
     !!importMetaEnv("PROD") ||
