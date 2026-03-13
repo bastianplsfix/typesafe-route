@@ -12,6 +12,13 @@
     "@std/assert": "jsr:@std/assert@1"
   },
   "publish": {
-    "include": ["mod.ts", "src/route-builder.ts", "deno.json", "README.md", "LICENSE"]
+    "include": [
+      "mod.ts",
+      "src/route-builder.ts",
+      "deno.json",
+      "README.md",
+      "LICENSE",
+      "CHANGELOG.md"
+    ]
   }
 }

@@ -2,6 +2,7 @@ import { assertEquals, assertThrows } from "@std/assert";
 import {
   route,
   matchRoute,
+  tryMatchRoute,
   routePattern,
   createRoute,
   configureRoute,
@@ -874,6 +875,24 @@ Deno.test("matchRoute: throws clear error when URLPattern is unavailable", () =>
   } finally {
     (globalThis as any).URLPattern = original;
   }
+});
+
+
+Deno.test("tryMatchRoute: returns null when URLPattern is unavailable", () => {
+  setup();
+  const original = (globalThis as any).URLPattern;
+  try {
+    (globalThis as any).URLPattern = undefined;
+    assertEquals(tryMatchRoute("/api/:id", "http://localhost:3000/api/42"), null);
+  } finally {
+    (globalThis as any).URLPattern = original;
+  }
+});
+
+Deno.test("tryMatchRoute: returns match result when URLPattern is available", () => {
+  setup();
+  const result = tryMatchRoute("/api/:id", "http://localhost:3000/api/42?x=1");
+  assertEquals(result, { path: { id: "42" }, search: { x: "1" } });
 });
 
 // ---------------------------------------------------------------------------

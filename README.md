@@ -83,7 +83,7 @@ const products = await fetch(
 **Perfect for:** Deno/Bun HTTP servers, middleware, webhooks
 
 ```ts
-import { matchRoute, createRoute } from "@bastianplsfix/typed-route";
+import { matchRoute, tryMatchRoute, createRoute } from "@bastianplsfix/typed-route";
 
 // Define routes once
 const userRoute = createRoute("/api/users/:id");
@@ -291,6 +291,18 @@ matchRoute("/files/:filename.:ext", "http://localhost:3000/files/doc.pdf");
 
 **Note:** `route()` only supports basic syntax (`:param`, `:param?`, `:param*`, `:param+`) for type inference. For advanced patterns in `route()`, use type assertion: `route("/api/:id(\\d+)" as any, { id: "123" } as any)`
 
+### `tryMatchRoute(pattern, url)`
+
+Non-throwing variant of `matchRoute()`.
+Returns `null` when the URL doesn't match **or** when `URLPattern` is unavailable.
+
+```ts
+const result = tryMatchRoute("/api/bookmarks/:id", maybeRelativeOrAbsoluteUrl);
+if (!result) {
+  // no match, or URLPattern unsupported
+}
+```
+
 ### `routePattern(pattern)`
 
 Bind a pattern for reuse. Returns a callable with `.pattern` and `.match()`.
@@ -493,6 +505,15 @@ Default is `"preserve"` (URLs are not modified).
 deno test          # run test suite
 deno publish       # publish to JSR
 ```
+
+
+### Release notes discipline
+
+For each release, add an entry to `CHANGELOG.md` with:
+- version and date
+- breaking changes
+- added/changed/fixed sections
+- migration notes (if needed)
 
 ## Exported types
 

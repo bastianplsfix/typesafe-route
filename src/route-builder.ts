@@ -449,6 +449,19 @@ export function matchRoute<T extends string>(
   return matchResult;
 }
 
+
+/**
+ * Non-throwing variant of {@linkcode matchRoute}.
+ * Returns `null` when URLPattern is unavailable or when the URL doesn't match.
+ */
+export function tryMatchRoute<T extends string>(
+  pattern: T,
+  url: string,
+): MatchResult<ExtractParams<T>> | null {
+  if (!isURLPatternSupported()) return null;
+  return matchRoute(pattern, url);
+}
+
 // ---------------------------------------------------------------------------
 // Pattern helper
 // ---------------------------------------------------------------------------

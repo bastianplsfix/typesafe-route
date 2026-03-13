@@ -26,6 +26,7 @@
 export {
   route,
   matchRoute,
+  tryMatchRoute,
   routePattern,
   createRoute,
   configureRoute,
