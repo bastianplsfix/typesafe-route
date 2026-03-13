@@ -379,7 +379,7 @@ Get both the resolved base URL and its source.
 ```ts
 const info = getBaseInfo();
 console.log(info.base);   // "https://api.example.com"
-console.log(info.source); // "config.base" | "env.API_BASE" | "window.location.origin" | ...
+console.log(info.source); // "config.base" | "env.API_BASE" | "window.location.origin" | "config.fallback" | "fallback"
 ```
 
 **Env-source testability:** `getBaseInfo().source` reports env-derived values as `"env.<KEY>"` (for example `"env.API_BASE"`), which makes assertions straightforward in tests.

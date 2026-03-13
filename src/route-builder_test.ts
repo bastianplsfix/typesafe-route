@@ -989,7 +989,7 @@ Deno.test("getBaseInfo: reports env source", () => {
 Deno.test("route: throws on regex pattern syntax", () => {
   setup();
   assertThrows(
-    () => (route as any)("/api/:id(\\d+)", { id: "123" }),
+    () => (route as any)("/api/:id(\\d+)", { path: { id: "123" } }),
     Error,
     "regex syntax",
   );
