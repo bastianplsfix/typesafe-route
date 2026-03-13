@@ -1,17 +1,17 @@
 {
   "name": "typed-route",
   "type": "module",
-  "version": "0.0.0",
-  "description": "A starter for creating a TypeScript package.",
+  "version": "0.4.0",
+  "description": "Type-safe URL builder and matcher for fetch() calls. Extracts :param names at compile time, resolves base URLs from Vite/Deno/Bun/Node/browser, and matches URLs back into typed params via URLPattern. Zero dependencies.",
   "author": "Sebastian Nomme <sebastian.nomme@icloud.com>",
   "license": "MIT",
-  "homepage": "https://github.com/author/library#readme",
+  "homepage": "https://github.com/bastianplsfix/typed-route#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/bastianplsfix/typed-route.git"
   },
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/bastianplsfix/typed-route/issues"
   },
   "exports": {
     ".": "./dist/index.mjs",

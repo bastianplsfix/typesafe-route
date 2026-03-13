@@ -83,8 +83,7 @@ export interface RouteBuildExtras {
  */
 export type RouteOptions<K extends string = string, T extends string = string> =
   [K] extends [never] ? RouteBuildExtras | undefined
-    : [RequiredParams<T>] extends [never]
-      ?
+    : [RequiredParams<T>] extends [never] ?
         | ({ path?: Partial<Record<K, ParamValue>> } & RouteBuildExtras)
         | undefined
     : ({
@@ -516,9 +515,8 @@ export function routePattern<T extends string>(pattern: T): BoundRoute<T> {
   validatePattern(pattern as string);
   rejectRegexPattern(pattern as string);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fn = ((...args: [any?]) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fn = ((...args: [unknown?]) => {
+    // deno-lint-ignore no-explicit-any
     return (route as any)(pattern, ...args);
   }) as unknown as BoundRoute<T>;
 
@@ -786,8 +784,8 @@ function normalizeTrailingSlash(url: string): string {
 
 function windowOrigin(): string | undefined {
   try {
-    if (typeof window === "undefined") return undefined;
-    const origin = window.location?.origin;
+    if (typeof globalThis.location === "undefined") return undefined;
+    const origin = globalThis.location?.origin;
     // Some runtimes expose "null" for opaque origins (e.g. file://); treat as unresolved.
     return origin && origin !== "null" ? origin : undefined;
   } catch {
@@ -825,7 +823,9 @@ function bunEnv(key: string): string | undefined {
 function processEnv(key: string): string | undefined {
   try {
     // @ts-ignore — process global may not exist in non-Node runtimes
+    // deno-lint-ignore no-process-global
     return typeof process !== "undefined"
+      // deno-lint-ignore no-process-global no-explicit-any
       ? (process as any).env[key]
       : undefined;
   } catch {
