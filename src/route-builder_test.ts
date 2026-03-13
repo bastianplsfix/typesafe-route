@@ -8,6 +8,7 @@ import {
   getBaseURL,
   getConfig,
   getBaseInfo,
+  isURLPatternSupported,
 } from "../mod.ts";
 
 function setup() {
@@ -829,6 +830,18 @@ Deno.test("matchRoute: handles malformed percent sequence without throwing", () 
 // ---------------------------------------------------------------------------
 // URLPattern availability
 // ---------------------------------------------------------------------------
+
+Deno.test("isURLPatternSupported: reflects URLPattern availability", () => {
+  const original = (globalThis as any).URLPattern;
+  try {
+    (globalThis as any).URLPattern = undefined;
+    assertEquals(isURLPatternSupported(), false);
+  } finally {
+    (globalThis as any).URLPattern = original;
+  }
+  assertEquals(isURLPatternSupported(), typeof (globalThis as any).URLPattern !== "undefined");
+});
+
 
 Deno.test("matchRoute: throws clear error when URLPattern is unavailable", () => {
   setup();

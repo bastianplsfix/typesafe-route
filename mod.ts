@@ -31,6 +31,7 @@ export {
   configureRoute,
   getBaseURL,
   getBaseInfo,
+  isURLPatternSupported,
   getConfig,
 } from "./src/route-builder.ts";
 

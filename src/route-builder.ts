@@ -206,8 +206,15 @@ export function getBaseInfo(): BaseInfo {
   const base = getBase();
   return {
     base,
-    source: _resolvedSource ?? "fallback",
+    source: _resolvedSource as BaseInfo["source"],
   };
+}
+
+/**
+ * Check whether URLPattern is available in the current runtime.
+ */
+export function isURLPatternSupported(): boolean {
+  return typeof URLPattern !== "undefined";
 }
 
 // ---------------------------------------------------------------------------
@@ -374,7 +381,7 @@ export function matchRoute<T extends string>(
 
   const base = getBase();
 
-  if (typeof URLPattern === "undefined") {
+  if (!isURLPatternSupported()) {
     throw new Error(
       "URLPattern is not available in this runtime. " +
       "Use a URLPattern polyfill or avoid matchRoute() in this environment.",

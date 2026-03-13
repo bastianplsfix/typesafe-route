@@ -142,7 +142,7 @@ const fileMatch = matchRoute("/files/:filename.:ext(pdf|doc|txt)", req.url);
 **Perfect for:** Test assertions, debugging, admin panels
 
 ```ts
-import { getBaseURL, getBaseInfo, getConfig } from "@bastianplsfix/typed-route";
+import { getBaseURL, getBaseInfo, getConfig, isURLPatternSupported } from "@bastianplsfix/typed-route";
 
 // Test setup
 beforeEach(() => {
@@ -368,6 +368,16 @@ Get both the resolved base URL and its source.
 const info = getBaseInfo();
 console.log(info.base);   // "https://api.example.com"
 console.log(info.source); // "config.base" | "env.API_BASE" | "window.location.origin" | ...
+```
+
+### `isURLPatternSupported()`
+
+Check whether `URLPattern` is available in the current runtime.
+
+```ts
+if (!isURLPatternSupported()) {
+  // Install/polyfill URLPattern before using matchRoute()
+}
 ```
 
 ### `getConfig()`
