@@ -965,40 +965,30 @@ Deno.test("getBaseInfo: reports fallback source", () => {
 });
 
 
-Deno.test("getBaseInfo: reports env source", () => {
-  const key = "API_BASE";
-  const previousProcess = (globalThis as any).process;
+Deno.test({
+  name: "getBaseInfo: reports env source",
+  permissions: { env: ["API_BASE"] },
+  fn() {
+    const key = "API_BASE";
+    const prev = Deno.env.get(key);
 
-  try {
-    if (typeof process !== "undefined") {
-      const prev = process.env[key];
-      process.env[key] = "https://env.example.com";
+    try {
+      Deno.env.set(key, "https://env.example.com");
 
       configureRoute({});
       assertEquals(getBaseInfo(), {
         base: "https://env.example.com",
         source: "env.API_BASE",
       });
-
+    } finally {
       if (prev === undefined) {
-        delete process.env[key];
+        Deno.env.delete(key);
       } else {
-        process.env[key] = prev;
+        Deno.env.set(key, prev);
       }
-    } else {
-      // Ensure env lookup path is testable even when `process` is absent.
-      (globalThis as any).process = { env: { [key]: "https://env.example.com" } };
-
-      configureRoute({});
-      assertEquals(getBaseInfo(), {
-        base: "https://env.example.com",
-        source: "env.API_BASE",
-      });
+      configureRoute({ base: "http://localhost:3000" });
     }
-  } finally {
-    (globalThis as any).process = previousProcess;
-    configureRoute({ base: "http://localhost:3000" });
-  }
+  },
 });
 
 // ---------------------------------------------------------------------------

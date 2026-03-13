@@ -405,8 +405,12 @@ export function matchRoute<T extends string>(
     );
   }
 
+  // Relative URLs (e.g. "/api/bookmarks/42") need the base prepended so
+  // URLPattern.exec() can match them against the full origin.
+  const resolvedUrl = url.startsWith("/") ? base + url : url;
+
   const urlPattern = new URLPattern({ pathname: pattern, baseURL: base });
-  const result = urlPattern.exec(url);
+  const result = urlPattern.exec(resolvedUrl);
 
   if (!result) {
     // Verbose logging for failed matches
