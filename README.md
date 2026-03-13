@@ -233,6 +233,8 @@ route("/files/:path*");                              // → ".../files"
 route("/files/:path+", { path: "docs/readme.md" }); // → ".../files/docs/readme.md"
 ```
 
+> **Option shape rule:** Top-level keys `path`, `search`, `hash`, `relative`, and `base` are reserved for explicit options. If your param names use any of those keys, pass params via `path` (e.g. `route("/api/:search", { path: { search: "users" } })`).
+
 ### `matchRoute(pattern, url)`
 
 Match a URL against a pattern and extract params. Returns `null` on mismatch.

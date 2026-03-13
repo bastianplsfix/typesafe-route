@@ -583,33 +583,28 @@ const EXTRA_KEYS = new Set(["path", "search", "hash", "relative", "base"]);
 
 function normalizeOptions(
   options?: RouteOptions<string> | RouteExtra,
-  pattern?: string,
+  _pattern?: string,
 ): NormalizedOptions {
   if (!options) return { path: {}, search: {} };
 
   const obj = options as Record<string, unknown>;
   const keys = Object.keys(obj);
 
-  // If any key is NOT an extra key, this must be the flat form — all values are path params.
-  // In explicit form, non-path params go inside `path: { ... }`, so there would be
-  // no unknown top-level keys.
+  const hasExtraKey = keys.some((k) => EXTRA_KEYS.has(k));
   const hasNonExtraKey = keys.some((k) => !EXTRA_KEYS.has(k));
 
-  if (hasNonExtraKey) {
-    return { path: obj as Record<string, ParamValue>, search: {} };
+  // Reduce ambiguity: mixing reserved extra keys with flat params is not allowed.
+  // Use explicit `{ path, ...extras }` form instead.
+  if (hasExtraKey && hasNonExtraKey) {
+    throw new Error(
+      'Ambiguous route options: cannot mix flat params with reserved keys ' +
+      '("path", "search", "hash", "relative", "base"). ' +
+      'Use explicit form: { path: {...}, search?, hash?, relative?, base? }.',
+    );
   }
 
-  // All keys are extra keys. Use unambiguous type signals first: `path` as object,
-  // `search` as object, or `relative` as boolean are strong indicators of explicit form.
-  const hasStrongExplicitKey = keys.some((k) => {
-    const v = obj[k];
-    if (k === "path") return typeof v === "object" && v !== null;
-    if (k === "search") return typeof v === "object" && v !== null;
-    if (k === "relative") return typeof v === "boolean";
-    return false;
-  });
-
-  if (hasStrongExplicitKey) {
+  // Explicit-form options.
+  if (hasExtraKey) {
     const explicit = options as {
       path?: Record<string, ParamValue>;
       search?: Record<string, string | string[]>;
@@ -626,32 +621,7 @@ function normalizeOptions(
     };
   }
 
-  // Remaining keys are only the ambiguous string-typed extras: `hash`, `base`.
-  // Use the pattern to disambiguate: if any key matches a param name, treat as flat.
-  if (pattern) {
-    const paramNames = new Set(
-      (pattern.match(/:([a-zA-Z_]\w*)/g) ?? []).map((m) => m.slice(1)),
-    );
-    if (keys.some((k) => paramNames.has(k))) {
-      return { path: obj as Record<string, ParamValue>, search: {} };
-    }
-  }
-
-  // No param-name overlap — treat `hash`/`base` strings as explicit-form extras.
-  if (keys.some((k) => (k === "hash" || k === "base") && typeof obj[k] === "string")) {
-    const explicit = options as {
-      hash?: string;
-      base?: string;
-    };
-    return {
-      path: {},
-      search: {},
-      hash: explicit.hash,
-      base: explicit.base,
-    };
-  }
-
-  // Flat object → all path params
+  // Flat shorthand → all top-level keys are treated as path params.
   return { path: obj as Record<string, ParamValue>, search: {} };
 }
 

@@ -654,19 +654,29 @@ Deno.test("trailing slash: strip mode with hash and query", () => {
 // Edge cases: flat params named like extra keys
 // ---------------------------------------------------------------------------
 
-Deno.test("flat params: param named 'search' treated as flat path param", () => {
+Deno.test("options: throws when flat params mix with reserved extra key 'search'", () => {
   setup();
-  assertEquals(
-    route("/api/:search/:id", { search: "users", id: "42" } as any),
-    "http://localhost:3000/api/users/42",
+  assertThrows(
+    () => (route as any)("/api/:search/:id", { search: "users", id: "42" }),
+    Error,
+    "Ambiguous route options",
   );
 });
 
-Deno.test("flat params: param named 'relative' treated as flat path param", () => {
+Deno.test("options: throws when flat params mix with reserved extra key 'relative'", () => {
+  setup();
+  assertThrows(
+    () => (route as any)("/api/:relative/:id", { relative: "yes", id: "42" }),
+    Error,
+    "Ambiguous route options",
+  );
+});
+
+Deno.test("options: reserved-name params work via explicit path", () => {
   setup();
   assertEquals(
-    route("/api/:relative/:id", { relative: "yes", id: "42" } as any),
-    "http://localhost:3000/api/yes/42",
+    route("/api/:search/:relative", { path: { search: "users", relative: "yes" } } as any),
+    "http://localhost:3000/api/users/yes",
   );
 });
 
@@ -774,23 +784,15 @@ Deno.test("routePattern: throws eagerly on pattern without leading slash", () =>
 // Bug fix: flat params named "hash" or "base" treated as path params
 // ---------------------------------------------------------------------------
 
-Deno.test("flat params: param named 'hash' treated as flat path param", () => {
+Deno.test("options: reserved-name params 'hash' and 'base' work via explicit path", () => {
   setup();
   assertEquals(
-    route("/api/:hash/:id", { hash: "abc", id: "42" } as any),
-    "http://localhost:3000/api/abc/42",
+    route("/api/:hash/:base", { path: { hash: "abc", base: "main" } } as any),
+    "http://localhost:3000/api/abc/main",
   );
 });
 
-Deno.test("flat params: param named 'base' treated as flat path param", () => {
-  setup();
-  assertEquals(
-    route("/api/:base/:id", { base: "main", id: "42" } as any),
-    "http://localhost:3000/api/main/42",
-  );
-});
-
-Deno.test("flat params: hash+base only keys still works as explicit when no pattern params match", () => {
+Deno.test("options: hash+base top-level keys are treated as explicit extras", () => {
   setup();
   assertEquals(
     route("/api/bookmarks", { hash: "section", base: "http://other.com" }),
