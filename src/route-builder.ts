@@ -385,7 +385,7 @@ export function matchRoute<T extends string>(
   ) as Record<ExtractParams<T>, string>;
 
   const search: Record<string, string | string[]> = {};
-  const parsed = new URL(url);
+  const parsed = new URL(url, base);
   for (const key of new Set(parsed.searchParams.keys())) {
     const values = parsed.searchParams.getAll(key);
     search[key] = values.length === 1 ? values[0] : values;

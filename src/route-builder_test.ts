@@ -185,6 +185,24 @@ Deno.test("matchRoute: returns null on mismatch", () => {
   assertEquals(result, null);
 });
 
+Deno.test("matchRoute: supports relative URLs", () => {
+  setup();
+  const result = matchRoute(
+    "/api/bookmarks/:id",
+    "/api/bookmarks/42",
+  );
+  assertEquals(result, { path: { id: "42" }, search: {} });
+});
+
+Deno.test("matchRoute: supports relative URLs with search params", () => {
+  setup();
+  const result = matchRoute(
+    "/api/bookmarks/:id",
+    "/api/bookmarks/42?fields=title",
+  );
+  assertEquals(result, { path: { id: "42" }, search: { fields: "title" } });
+});
+
 Deno.test("matchRoute: extracts both path and search", () => {
   setup();
   const result = matchRoute(
