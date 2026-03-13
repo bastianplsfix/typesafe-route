@@ -19,7 +19,7 @@ import { route } from "jsr:@bastianplsfix/typed-route";
 // deno add jsr:@bastianplsfix/typed-route
 ```
 
-> **URLPattern support:** Native in Chromium, Node ≥ 23, Deno, and Bun. Firefox requires a [polyfill](https://github.com/kenchris/urlpattern-polyfill). Note: only `matchRoute` needs URLPattern — `route()` works everywhere.
+> **URLPattern support:** Native in Chromium, Node ≥ 23, Deno, and Bun. Firefox requires a [polyfill](https://github.com/kenchris/urlpattern-polyfill). Note: only `matchRoute` needs URLPattern — `route()` works everywhere. If unavailable, `matchRoute()` throws a clear error.
 
 ## Quick start
 
@@ -29,7 +29,7 @@ import { route } from "@bastianplsfix/typed-route";
 // In a TanStack Query hook
 useSuspenseQuery({
   queryKey: ["bookmarks", id],
-  queryFn: () => fetch(route("/api/bookmarks/:id", { id })).then(r => r.json()),
+  queryFn: () => fetch(route("/api/bookmarks/:id", { path: { id } })).then(r => r.json()),
 });
 ```
 
@@ -39,7 +39,8 @@ The base URL is resolved automatically:
 2. `Deno.env.get("API_BASE")`
 3. `Bun.env.API_BASE`
 4. `process.env.API_BASE`
-5. `http://localhost:3000` (fallback)
+5. `window.location.origin` (browser runtime)
+6. `http://localhost:3000` (fallback)
 
 ## Use Cases
 
@@ -56,13 +57,13 @@ const userRoute = createRoute("/api/users/:id");
 function useUser(id: string) {
   return useSuspenseQuery({
     queryKey: [userRoute.pattern, id],
-    queryFn: () => fetch(userRoute({ id })).then(r => r.json())
+    queryFn: () => fetch(userRoute({ path: { id } })).then(r => r.json())
   });
 }
 
 // Form submissions
 async function updateUser(id: string, data: UserData) {
-  await fetch(route("/api/users/:id", { id }), {
+  await fetch(route("/api/users/:id", { path: { id } }), {
     method: "PUT",
     body: JSON.stringify(data)
   });
@@ -82,7 +83,7 @@ const products = await fetch(
 **Perfect for:** Deno/Bun HTTP servers, middleware, webhooks
 
 ```ts
-import { matchRoute, createRoute } from "@bastianplsfix/typed-route";
+import { matchRoute, tryMatchRoute, createRoute } from "@bastianplsfix/typed-route";
 
 // Define routes once
 const userRoute = createRoute("/api/users/:id");
@@ -141,7 +142,7 @@ const fileMatch = matchRoute("/files/:filename.:ext(pdf|doc|txt)", req.url);
 **Perfect for:** Test assertions, debugging, admin panels
 
 ```ts
-import { getBaseURL, getConfig } from "@bastianplsfix/typed-route";
+import { getBaseURL, getBaseInfo, getConfig, isURLPatternSupported, resetRouteConfig } from "@bastianplsfix/typed-route";
 
 // Test setup
 beforeEach(() => {
@@ -176,8 +177,8 @@ function ApiStatus() {
 Build a full URL from a pattern and params.
 
 ```ts
-// Flat shorthand — all values are path params
-route("/api/bookmarks/:id", { id: "42" });
+// Explicit path params
+route("/api/bookmarks/:id", { path: { id: "42" } });
 // → "http://localhost:3000/api/bookmarks/42"
 
 // Explicit path + search
@@ -222,14 +223,30 @@ route("/api/users/:id", {
 
 // Optional param — omit or provide
 route("/api/bookmarks/:id?", {});           // → ".../api/bookmarks"
-route("/api/bookmarks/:id?", { id: "42" }); // → ".../api/bookmarks/42"
+route("/api/bookmarks/:id?", { path: { id: "42" } }); // → ".../api/bookmarks/42"
 
 // Wildcard — zero-or-more segments (slashes preserved)
-route("/files/:path*", { path: "docs/readme.md" }); // → ".../files/docs/readme.md"
+route("/files/:path*", { path: { path: "docs/readme.md" } }); // → ".../files/docs/readme.md"
 route("/files/:path*");                              // → ".../files"
 
 // Wildcard — one-or-more segments (required)
-route("/files/:path+", { path: "docs/readme.md" }); // → ".../files/docs/readme.md"
+route("/files/:path+", { path: { path: "docs/readme.md" } }); // → ".../files/docs/readme.md"
+```
+
+> **Option shape rule:** Path params must be passed under `path`. Top-level keys are reserved for explicit options: `path`, `search`, `hash`, `relative`, and `base`.
+
+> **Migration note:** Legacy top-level param shorthand is removed. Use `{ path: { ... } }` instead of `{ id: ... }`.
+
+### Breaking changes (explicit `path` options)
+
+`route()` no longer accepts top-level path params.
+
+```ts
+// Before
+route("/api/users/:id", { id: "42" });
+
+// After
+route("/api/users/:id", { path: { id: "42" } });
 ```
 
 ### `matchRoute(pattern, url)`
@@ -274,6 +291,18 @@ matchRoute("/files/:filename.:ext", "http://localhost:3000/files/doc.pdf");
 
 **Note:** `route()` only supports basic syntax (`:param`, `:param?`, `:param*`, `:param+`) for type inference. For advanced patterns in `route()`, use type assertion: `route("/api/:id(\\d+)" as any, { id: "123" } as any)`
 
+### `tryMatchRoute(pattern, url)`
+
+Non-throwing variant of `matchRoute()`.
+Returns `null` when the URL doesn't match **or** when `URLPattern` is unavailable.
+
+```ts
+const result = tryMatchRoute("/api/bookmarks/:id", maybeRelativeOrAbsoluteUrl);
+if (!result) {
+  // no match, or URLPattern unsupported
+}
+```
+
 ### `routePattern(pattern)`
 
 Bind a pattern for reuse. Returns a callable with `.pattern` and `.match()`.
@@ -284,7 +313,7 @@ const bookmarks = routePattern("/api/bookmarks/:id");
 // Use .pattern for query keys
 useSuspenseQuery({
   queryKey: [bookmarks.pattern, id],
-  queryFn: () => fetch(bookmarks({ id })).then(r => r.json()),
+  queryFn: () => fetch(bookmarks({ path: { id } })).then(r => r.json()),
 });
 
 // Match incoming URLs
@@ -355,6 +384,40 @@ if (getBaseURL().includes("localhost")) {
 }
 ```
 
+### `getBaseInfo()`
+
+Get both the resolved base URL and its source.
+
+```ts
+const info = getBaseInfo();
+console.log(info.base);   // "https://api.example.com"
+console.log(info.source); // "config.base" | "env.API_BASE" | "window.location.origin" | "config.fallback" | "fallback"
+```
+
+**Env-source testability:** `getBaseInfo().source` reports env-derived values as `"env.<KEY>"` (for example `"env.API_BASE"`), which makes assertions straightforward in tests.
+
+
+### `isURLPatternSupported()`
+
+Check whether `URLPattern` is available in the current runtime.
+
+```ts
+if (!isURLPatternSupported()) {
+  // Install/polyfill URLPattern before using matchRoute()
+}
+```
+
+### `resetRouteConfig()`
+
+Reset all route configuration and cached base-resolution state.
+Useful for tests or hot-reload flows.
+
+```ts
+configureRoute({ base: "https://api.example.com" });
+resetRouteConfig();
+// back to default resolution behavior
+```
+
 ### `getConfig()`
 
 Get the current configuration (read-only copy).
@@ -370,12 +433,12 @@ console.log("Trailing slash:", config.trailingSlash);
 Param names are extracted from the pattern string literal at compile time:
 
 ```ts
-route("/api/bookmarks/:id", { id: "42" });          // ✅
-route("/api/bookmarks/:id", { name: "oops" });       // ❌ type error
-route("/api/:org/bookmarks/:id", { org: "acme" });   // ❌ missing `id`
+route("/api/bookmarks/:id", { path: { id: "42" } });          // ✅
+route("/api/bookmarks/:id", { path: { name: "oops" } });       // ❌ type error
+route("/api/:org/bookmarks/:id", { path: { org: "acme" } });   // ❌ missing `id`
 route("/api/bookmarks");                              // ✅ no params required
 route("/api/bookmarks/:id?");                         // ✅ optional — args can be omitted
-route("/api/:org/bookmarks/:id?", { org: "acme" });  // ✅ only required params needed
+route("/api/:org/bookmarks/:id?", { path: { org: "acme" } });  // ✅ only required params needed
 ```
 
 ### Optional and wildcard modifiers
@@ -399,18 +462,18 @@ The pattern declares your URL's contract. If you have a value that might be `und
 const userId: string | undefined = session?.userId;
 
 // ❌ Type error - pattern says :id is required, but userId might be undefined
-route("/api/users/:id", { id: userId });
+route("/api/users/:id", { path: { id: userId } });
 
 // ✅ Option 1: Make the pattern match reality
-route("/api/users/:id?", { id: userId });
+route("/api/users/:id?", { path: { id: userId } });
 
 // ✅ Option 2: Guard it explicitly
 if (userId) {
-  route("/api/users/:id", { id: userId });
+  route("/api/users/:id", { path: { id: userId } });
 }
 
 // ✅ Option 3: Provide a fallback
-route("/api/users/:id", { id: userId || "me" });
+route("/api/users/:id", { path: { id: userId || "me" } });
 ```
 
 This is intentional — the pattern syntax should match your data's optionality. It prevents bugs where you forget to handle missing params.
@@ -443,6 +506,15 @@ deno test          # run test suite
 deno publish       # publish to JSR
 ```
 
+
+### Release notes discipline
+
+For each release, add an entry to `CHANGELOG.md` with:
+- version and date
+- breaking changes
+- added/changed/fixed sections
+- migration notes (if needed)
+
 ## Exported types
 
 ```ts
@@ -450,11 +522,13 @@ import type {
   ParamValue,        // string | number
   StripModifier,     // strips ?, *, + suffixes from param names
   ExtractParams,     // template literal type — extracts ":param" names
-  RouteExtra,        // extra options (search, hash, relative, base)
+  RouteBuildExtras,        // extra options (search, hash, relative, base)
   RouteOptions,      // options union for route()
   MatchResult,       // return type of matchRoute()
   BoundRoute,        // return type of routePattern()
   RouteConfig,       // config for configureRoute()
+  BaseSource,        // source literals for resolved base
+  BaseInfo,          // resolved base debug info
 } from "@bastianplsfix/typed-route";
 ```
 

@@ -10,7 +10,7 @@
  * import { route, matchRoute, routePattern, configureRoute } from "@bastianplsfix/typed-route";
  *
  * // Build a URL
- * route("/api/bookmarks/:id", { id: "42" });
+ * route("/api/bookmarks/:id", { path: { id: "42" } });
  * // → "http://localhost:3000/api/bookmarks/42"
  *
  * // Match a URL
@@ -19,17 +19,21 @@
  *
  * // Bind a pattern for reuse
  * const bookmarks = routePattern("/api/bookmarks/:id");
- * bookmarks({ id: "42" });
+ * bookmarks({ path: { id: "42" } });
  * ```
  */
 
 export {
   route,
   matchRoute,
+  tryMatchRoute,
   routePattern,
   createRoute,
   configureRoute,
+  resetRouteConfig,
   getBaseURL,
+  getBaseInfo,
+  isURLPatternSupported,
   getConfig,
 } from "./src/route-builder.ts";
 
@@ -37,9 +41,11 @@ export type {
   ParamValue,
   StripModifier,
   ExtractParams,
-  RouteExtra,
+  RouteBuildExtras,
   RouteOptions,
   MatchResult,
   BoundRoute,
   RouteConfig,
+  BaseSource,
+  BaseInfo,
 } from "./src/route-builder.ts";
