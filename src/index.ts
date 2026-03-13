@@ -1,5 +1,5 @@
 /**
- * route-builder
+ * typesafe-route
  *
  * A tiny URL builder & matcher powered by the URLPattern API.
  * Resolves base URLs automatically from the environment so you

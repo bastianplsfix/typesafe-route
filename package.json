@@ -32,9 +32,10 @@
     "@types/node": "^25.3.5",
     "@typescript/native-preview": "7.0.0-dev.20260309.1",
     "bumpp": "^10.4.1",
+    "happy-dom": "^20.8.4",
     "typescript": "^5.9.3",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@latest",
-    "vite-plus": "latest"
+    "vite-plus": "latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
   },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
