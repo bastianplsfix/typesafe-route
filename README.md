@@ -2,7 +2,7 @@
 
 A tiny, type-safe URL builder and matcher powered by the [URLPattern API](https://developer.mozilla.org/en-US/docs/Web/API/URLPattern). Resolves base URLs automatically from your environment so you never have to interpolate template strings into `fetch()` calls.
 
-- **Zero dependencies** — single file, ~470 lines
+- **Zero dependencies** — single file, ~800 lines
 - **Type-safe path params** — extracted from string literals at compile time
 - **Runtime guards** — throws on unreplaced params even when types are bypassed
 - **Environment-aware** — auto-detects base URL from Vite, Deno, Bun, Node, or browser
